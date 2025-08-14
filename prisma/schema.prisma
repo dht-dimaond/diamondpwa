@@ -1,0 +1,72 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String     @id @default(cuid())
+  clerkId           String     @unique
+  firstName         String
+  lastName          String
+  userName          String     @unique
+  avatar            String
+  email             String
+  isAmbassador      Boolean    @default(false)
+  telegramId        Int?       @unique
+  telegramUsername  String?
+  balance           Int        @default(0)
+  hashrate          Int        @default(10)
+  minedAmount       Float?     @default(0)
+  miningStartTime   DateTime?
+  isMining          Boolean    @default(false)
+  isMigrated        Boolean    @default(false) 
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  streak    UserStreak?
+  transactions Transaction[]
+  @@map("users")
+}
+
+model UserStreak {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id])
+  currentStreak       Int      @default(0)
+  highestStreak       Int      @default(0)
+  startDate           DateTime?
+  lastLogin           DateTime?
+  achievedMilestones  Int[]    @default([])
+  tokens              Int      @default(0)
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String   // References User.id
+  packageId   Int
+  hashRate    Float
+  priceTON    Float
+  amount      Float
+  date        DateTime @default(now())
+  boc         String
+  validity    String
+  item        Float    // hashRate value
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+model Price {
+  id      String  @id @default(cuid())
+  price   Float
+  change  Float
+  updatedAt DateTime @updatedAt
+}
