@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { prisma } from '@/lib/prisma';
 
 interface MiningState {
   balance: number;
@@ -37,19 +36,16 @@ export const useMiningLogic = ({
   const MAX_MINABLE_AMOUNT = 100;
   const UPDATE_INTERVAL = 1000;
 
-  // Fetch user data from database
+  // Fetch user data from API
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const userData = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { 
-            balance: true, 
-            hashrate: true,
-            miningStartTime: true,
-            minedAmount: true
-          }
-        });
+        const response = await fetch('/api/user');
+        if (!response.ok) {
+          throw new Error('Failed to fetch user data');
+        }
+        
+        const userData = await response.json();
         
         if (userData) {
           setBalance(userData.balance || initialBalance);
@@ -57,12 +53,12 @@ export const useMiningLogic = ({
           
           // Restore mining state if user was mining
           if (userData.miningStartTime && userData.minedAmount !== null) {
-            const elapsedSeconds = (Date.now() - userData.miningStartTime.getTime()) / 1000;
+            const elapsedSeconds = (Date.now() - new Date(userData.miningStartTime).getTime()) / 1000;
             const offlineEarnings = 0.00278 * userData.hashrate * elapsedSeconds;
             const totalMined = Math.min(MAX_MINABLE_AMOUNT, userData.minedAmount + offlineEarnings);
             
             setMinedAmount(totalMined);
-            setMiningStartTime(userData.miningStartTime.getTime());
+            setMiningStartTime(new Date(userData.miningStartTime).getTime());
             setIsMining(totalMined < MAX_MINABLE_AMOUNT);
           }
         }
@@ -74,7 +70,7 @@ export const useMiningLogic = ({
     if (userId) {
       fetchUserData();
     }
-  }, [userId, initialBalance, initialHashRate]);
+  }, [initialBalance, initialHashRate]); // Removed userId dependency since we use Clerk auth
 
   const getMiningRate = useCallback((): number => {
     return 0.00278 * hashRate;
@@ -87,17 +83,24 @@ export const useMiningLogic = ({
     }
   }, []);
 
-  // Save mining state to database
+  // Save mining state via API
   const saveMiningState = useCallback(async (amount: number, startTime: number | null, isActive: boolean) => {
     try {
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
+      const response = await fetch(`/api/user/${userId}/mining-state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           minedAmount: amount,
-          miningStartTime: startTime ? new Date(startTime) : null,
+          miningStartTime: startTime ? new Date(startTime).toISOString() : null,
           isMining: isActive
-        }
+        })
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to save mining state');
+      }
     } catch (error) {
       console.error('Error saving mining state:', error);
     }
@@ -114,7 +117,7 @@ export const useMiningLogic = ({
         setMiningStartTime(null);
       }
       
-      // Save state to database
+      // Save state to database via API
       saveMiningState(minedAmount, startTime, newMiningState);
       
       return newMiningState;
@@ -125,10 +128,17 @@ export const useMiningLogic = ({
     const newRate = hashRate + amount;
     
     try {
-      await prisma.user.update({
-        where: { id: userId },
-        data: { hashrate: newRate }
+      const response = await fetch(`/api/user/${userId}/hashrate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ hashrate: newRate })
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to upgrade hashrate');
+      }
       
       setHashRate(newRate);
       
@@ -155,7 +165,7 @@ export const useMiningLogic = ({
             // Save completed mining state
             saveMiningState(MAX_MINABLE_AMOUNT, null, false);
             
-            // Show browser notification instead of Telegram popup
+            // Show browser notification
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification('🎉 Mining Complete!', {
                 body: 'Claim your 100 DHT tokens!',
@@ -166,7 +176,7 @@ export const useMiningLogic = ({
             return MAX_MINABLE_AMOUNT;
           }
           
-          // Periodically save mining progress (every 10 seconds to avoid too many DB calls)
+          // Periodically save mining progress (every 10 seconds to avoid too many API calls)
           if (Math.floor(newAmount * 10) % 10 === 0) {
             saveMiningState(newAmount, miningStartTime, true);
           }
@@ -189,31 +199,34 @@ export const useMiningLogic = ({
     const newBalance = balance + minedAmount;
 
     try {
-      await prisma.user.update({
-        where: { id: userId },
-        data: { 
-          balance: newBalance,
-          minedAmount: 0,
-          miningStartTime: null,
-          isMining: false
-        }
+      const response = await fetch(`/api/user/${userId}/claim`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          claimAmount: minedAmount 
+        })
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to claim DHT');
+      }
+
+      const result = await response.json();
       
-      setBalance(newBalance);
+      setBalance(result.newBalance);
       setMinedAmount(0);
       setMiningStartTime(null);
       
       const formattedMinedAmount = minedAmount.toFixed(2);
-      const formattedNewBalance = newBalance.toFixed(2);
+      const formattedNewBalance = result.newBalance.toFixed(2);
       
-      // Use browser alert instead of Telegram popup
+      // Use browser alert
       alert(`Successfully claimed ${formattedMinedAmount} DHT!\nNew Balance: ${formattedNewBalance} DHT`);
       console.log(`Claimed ${formattedMinedAmount} DHT. New Balance: ${formattedNewBalance} DHT`);
     } catch (error) {
-      console.error('Error updating balance in database:', error);
-      // Revert local state on error
-      setBalance(balance);
-      setMinedAmount(minedAmount);
+      console.error('Error claiming DHT:', error);
       throw error;
     }
   }, [minedAmount, balance, userId]);

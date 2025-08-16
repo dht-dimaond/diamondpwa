@@ -43,7 +43,7 @@ const ProfilePage = () => {
         const userDbData = await response.json();
         
         if (userDbData) {
-          setUserData(userDbData); // All data comes from database
+          setUserData(userDbData); 
         }
       } catch (error) {
         console.error('Error fetching user data:', error);

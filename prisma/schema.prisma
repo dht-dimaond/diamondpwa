@@ -17,22 +17,25 @@ model User {
   avatar            String
   email             String
   isAmbassador      Boolean    @default(false)
-  telegramId        Int?       @unique
+  telegramId        String?    @unique
   telegramUsername  String?
   balance           Int        @default(0)
   hashrate          Int        @default(10)
   minedAmount       Float?     @default(0)
   miningStartTime   DateTime?
   isMining          Boolean    @default(false)
-  isMigrated        Boolean    @default(false) 
+  isMigrated        Boolean    @default(false)
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
+  referralCode      String?    @unique // New field for user's referral code
+  referredBy        String?    // New field referencing another user's id
+  referrer          User?      @relation("Referrals", fields: [referredBy], references: [id], onDelete: SetNull)
+  referrals         User[]     @relation("Referrals") // Self-referencing relation for users referred by this user
+  streak            UserStreak?
+  transactions      Transaction[]
 
-  streak    UserStreak?
-  transactions Transaction[]
   @@map("users")
 }
-
 model UserStreak {
   id                  String   @id @default(cuid())
   userId              String   @unique

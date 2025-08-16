@@ -1,7 +1,6 @@
 'use client';
 
 import { CircleQuestionMark } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 
 
@@ -11,13 +10,6 @@ export default function Bar() {
      
       
       <div className="flex flex-row items-center">
-        <Image
-          src="/logo-coin.png"
-          alt="DHT"
-          width={40} 
-          height={10} 
-          className="w-13 h-10" 
-        />
          <div className="relative flex-col justify-start">
          <span className="text-2xl font-extrabold bg-gradient-to-r from-blue-400 to-yellow-500 bg-clip-text text-transparent animate-pulse">
            DIAMONDHEIST

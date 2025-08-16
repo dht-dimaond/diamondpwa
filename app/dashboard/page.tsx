@@ -8,9 +8,7 @@ import ClaimButton from '@/components/ClaimButton';
 import DHTBalanceCard from '@/components/DHTBalanceCard';
 import AnimatedCoins from '@/components/AnimatedCoins';
 import TokenDetails from '@/components/TokenDetails';
-import { prisma } from '@/lib/prisma'; 
 import { useMining } from '@/context/MiningContext';
-import Image from 'next/image';
 import Tokenomics from '@/components/Tokennomics';
 import PriceComponent from '@/components/PriceComponent';
 
@@ -23,29 +21,37 @@ const HomePage = () => {
     const fetchUserData = async () => {
       try {
         if (!user?.id) {
-          console.error('User ID is missing');
+          console.error("User ID is missing");
           return;
         }
-
-        const userId = user.id;
-        const userData = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { balance: true, hashrate: true }
+  
+        const res = await fetch(`/api/user?userId=${user.id}`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
-
+  
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+  
+        const userData = await res.json();
+  
         if (userData) {
           setInitialBalance(userData.balance);
           setInitialHashRate(userData.hashrate);
         }
       } catch (error) {
-        console.error('Error fetching user data:', error);
+        console.error("Error fetching user data:", error);
       }
     };
-
+  
     if (isLoaded && user) {
       fetchUserData();
     }
-  }, [user, isLoaded]); 
+  }, [user, isLoaded]);
+  
 
   const {
     balance,

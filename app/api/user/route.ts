@@ -10,8 +10,7 @@ export async function GET(request: NextRequest) {
     if (!auth?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // Fetch user data from Neon database using Prisma
+    
     const user = await prisma.user.findUnique({
       where: { clerkId: auth.id },
       select: {
