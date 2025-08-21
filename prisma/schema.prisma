@@ -14,7 +14,7 @@ model User {
   firstName         String
   lastName          String
   userName          String     @unique
-  avatar            String
+  avatar            String?
   email             String
   isAmbassador      Boolean    @default(false)
   telegramId        String?    @unique
@@ -51,7 +51,7 @@ model UserStreak {
 model Transaction {
   id          String   @id @default(cuid())
   userId      String   // References User.id
-  packageId   Int
+  packageId   Int?
   hashRate    Float
   priceTON    Float
   amount      Float
