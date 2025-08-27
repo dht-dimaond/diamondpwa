@@ -13,12 +13,17 @@ interface MigrationResponse {
   success: boolean;
   migrated: boolean;
   userData: {
-    id: string; // Added
+    id: string;
     balance: number;
     hashrate: number;
     telegramId?: string;
     isAmbassador?: boolean;
     createdAt?: string;
+    streak?: {
+      currentStreak: number;
+      highestStreak: number;
+      tokens: number;
+    };
   };
   error?: string;
   needsMigration?: boolean;
@@ -38,24 +43,13 @@ function validateTelegramId(id: string): { valid: boolean; parsed?: string; erro
 }
 
 export async function POST(req: Request) {
-  console.log('📡 POST /api/migrate-on-signup started');
-  
   try {
-    console.log('🔍 Getting current user from Clerk...');
     const clerkUser = await currentUser();
     
     if (!clerkUser) {
-      console.log('❌ No Clerk user found');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    console.log('✅ Clerk user found:', { 
-      id: clerkUser.id, 
-      firstName: clerkUser.firstName,
-      email: clerkUser.emailAddresses[0]?.emailAddress 
-    });
 
-    console.log('🔍 Checking if user exists in database...');
     const existingUser = await prisma.user.findUnique({
       where: { clerkId: clerkUser.id },
       select: {
@@ -67,37 +61,39 @@ export async function POST(req: Request) {
         isMigrated: true,
         isAmbassador: true,
         createdAt: true,
+        streak: {
+          select: {
+            currentStreak: true,
+            highestStreak: true,
+            tokens: true,
+          }
+        }
       },
     });
 
     if (existingUser) {
-      console.log('✅ User already exists in database:', {
-        id: existingUser.id,
-        balance: existingUser.balance,
-        isMigrated: existingUser.isMigrated,
-        isAmbassador: existingUser.isAmbassador,
-      });
       return NextResponse.json({
         success: true,
         migrated: existingUser.isMigrated,
         userData: {
-          id: existingUser.id, // Added
+          id: existingUser.id,
           balance: existingUser.balance || 0,
           hashrate: existingUser.hashrate || 0,
           telegramId: existingUser.telegramId || undefined,
           isAmbassador: existingUser.isAmbassador || false,
           createdAt: existingUser.createdAt.toISOString(),
+          streak: existingUser.streak || {
+            currentStreak: 0,
+            highestStreak: 0,
+            tokens: 0,
+          },
         },
         error: 'User already exists',
       });
     }
-
-    console.log('📝 User does not exist, proceeding with migration...');
     
     const body: MigrationRequest = await req.json();
     const { telegramId, skipMigration } = body;
-    
-    console.log('📊 Migration request:', { telegramId, skipMigration });
 
     let balance = 0;
     let hashrate = 10;
@@ -112,11 +108,9 @@ export async function POST(req: Request) {
     } | null = null;
 
     if (telegramId && !skipMigration) {
-      console.log('🔄 Attempting Telegram migration...');
       const validation = validateTelegramId(telegramId);
       
       if (!validation.valid) {
-        console.log('❌ Invalid Telegram ID:', validation.error);
         return NextResponse.json(
           { error: validation.error },
           { status: 400 }
@@ -124,19 +118,13 @@ export async function POST(req: Request) {
       }
 
       finalTelegramId = validation.parsed!;
-      console.log('✅ Valid Telegram ID:', finalTelegramId);
 
-      console.log('🔍 Checking if Telegram ID already exists...');
       const existingTelegramUser = await prisma.user.findUnique({
         where: { telegramId: finalTelegramId },
-        select: {
-          id: true,
-          clerkId: true,
-        },
+        select: { id: true, clerkId: true },
       });
 
       if (existingTelegramUser) {
-        console.log('❌ Telegram ID already linked to another user');
         return NextResponse.json(
           { error: 'This Telegram ID is already linked to another account' },
           { status: 409 }
@@ -144,10 +132,7 @@ export async function POST(req: Request) {
       }
 
       try {
-        console.log('🔍 Querying Firebase for legacy data...');
         const telegramIdNumber = parseInt(finalTelegramId);
-        
-        console.log(`🔍 Looking for telegramId: ${telegramIdNumber} (number) or "${finalTelegramId}" (string)`);
         
         const qNumber = query(
           collection(clientDb, 'users'),
@@ -158,7 +143,6 @@ export async function POST(req: Request) {
         let snapshot = await getDocs(qNumber);
         
         if (snapshot.empty) {
-          console.log('🔍 Not found as number, trying as string...');
           const qString = query(
             collection(clientDb, 'users'),
             where('telegramId', '==', finalTelegramId),
@@ -170,15 +154,6 @@ export async function POST(req: Request) {
         if (!snapshot.empty) {
           const legacyDoc = snapshot.docs[0];
           const legacyData = legacyDoc.data();
-          console.log('✅ Found legacy data:', {
-            docId: legacyDoc.id,
-            telegramId: legacyData.telegramId,
-            balance: legacyData.balance,
-            hashrate: legacyData.hashrate,
-            isAmbassador: legacyData.isAmbassador,
-            createdAt: legacyData.createdAt,
-            allFields: Object.keys(legacyData),
-          });
           
           balance = typeof legacyData.balance === 'number' ? Math.max(0, legacyData.balance) : 0;
           hashrate = typeof legacyData.hashrate === 'number' ? Math.max(10, legacyData.hashrate) : 10;
@@ -199,15 +174,6 @@ export async function POST(req: Request) {
           }
           
           migrated = true;
-
-          console.log('📊 Processed legacy data:', { 
-            balance, 
-            hashrate, 
-            isAmbassador,
-            legacyCreatedAt: legacyCreatedAt?.toISOString(),
-            migrated 
-          });
-          
           migratedData = {
             balance,
             hashrate,
@@ -215,9 +181,6 @@ export async function POST(req: Request) {
             createdAt: legacyCreatedAt,
           };
         } else {
-          console.log('❌ No legacy data found in Firebase for telegramId:', finalTelegramId);
-          console.log('🛑 User provided Telegram ID but no data found - should NOT create account');
-          
           return NextResponse.json({
             success: false,
             migrated: false,
@@ -227,18 +190,10 @@ export async function POST(req: Request) {
           }, { status: 404 });
         }
       } catch (firebaseError) {
-        console.error('💥 Firebase query error:', firebaseError);
-        console.error('Firebase error details:', {
-          message: firebaseError instanceof Error ? firebaseError.message : 'Unknown error',
-          code: (firebaseError as any)?.code || 'No code',
-        });
         migrationError = 'Unable to check legacy data';
       }
-    } else {
-      console.log('🆕 Creating fresh account (no Telegram migration)');
     }
 
-    console.log('💾 Creating user in database...');
     const newUser = await prisma.user.create({
       data: {
         clerkId: clerkUser.id,
@@ -254,6 +209,14 @@ export async function POST(req: Request) {
         isMigrated: migrated,
         createdAt: migratedData?.createdAt || new Date(),
         updatedAt: new Date(),
+        streak: {
+          create: {
+            currentStreak: 0,
+            highestStreak: 0,
+            tokens: 0,
+            achievedMilestones: [],
+          }
+        }
       },
       select: {
         id: true,
@@ -263,16 +226,14 @@ export async function POST(req: Request) {
         isMigrated: true,
         isAmbassador: true,
         createdAt: true,
+        streak: {
+          select: {
+            currentStreak: true,
+            highestStreak: true,
+            tokens: true,
+          }
+        }
       },
-    });
-
-    console.log('✅ User created successfully:', {
-      id: newUser.id,
-      balance: newUser.balance,
-      hashrate: newUser.hashrate,
-      isMigrated: newUser.isMigrated,
-      isAmbassador: newUser.isAmbassador,
-      createdAt: newUser.createdAt,
     });
 
     const response: MigrationResponse = {
@@ -285,6 +246,11 @@ export async function POST(req: Request) {
         telegramId: newUser.telegramId || undefined,
         isAmbassador: newUser.isAmbassador || false,
         createdAt: newUser.createdAt.toISOString(),
+        streak: newUser.streak || {
+          currentStreak: 0,
+          highestStreak: 0,
+          tokens: 0,
+        },
       },
     };
 
@@ -292,16 +258,8 @@ export async function POST(req: Request) {
       response.error = `Migration attempted but ${migrationError}. Started fresh account instead.`;
     }
 
-    console.log('🎉 Migration completed successfully:', response);
     return NextResponse.json(response);
   } catch (error: any) {
-    console.error('💥 Migration error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      meta: error.meta,
-    });
-
     if (error.code === 'P2002') {
       const target = error.meta?.target;
       if (target?.includes('userName')) {
@@ -335,20 +293,13 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  console.log('📡 GET /api/migrate-on-signup started');
-  
   try {
-    console.log('🔍 Getting current user from Clerk...');
     const clerkUser = await currentUser();
     
     if (!clerkUser) {
-      console.log('❌ No Clerk user found');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    console.log('✅ Clerk user found:', { id: clerkUser.id });
 
-    console.log('🔍 Checking if user exists in database...');
     const existingUser = await prisma.user.findUnique({
       where: { clerkId: clerkUser.id },
       select: { 
@@ -359,6 +310,13 @@ export async function GET(req: Request) {
         isMigrated: true,
         isAmbassador: true,
         createdAt: true,
+        streak: {
+          select: {
+            currentStreak: true,
+            highestStreak: true,
+            tokens: true,
+          }
+        }
       },
     });
 
@@ -372,13 +330,16 @@ export async function GET(req: Request) {
         isMigrated: existingUser.isMigrated,
         isAmbassador: existingUser.isAmbassador,
         createdAt: existingUser.createdAt.toISOString(),
+        streak: existingUser.streak || {
+          currentStreak: 0,
+          highestStreak: 0,
+          tokens: 0,
+        },
       } : null,
     };
     
-    console.log('📊 Migration check result:', result);
     return NextResponse.json(result);
   } catch (error) {
-    console.error('💥 Migration check error:', error);
     return NextResponse.json(
       { error: 'Failed to check migration status' },
       { status: 500 }

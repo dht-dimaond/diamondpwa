@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -27,49 +26,109 @@ model User {
   isMigrated        Boolean    @default(false)
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
-  referralCode      String?    @unique // New field for user's referral code
-  referredBy        String?    // New field referencing another user's id
+  referralCode      String?    @unique
+  referredBy        String?    
   referrer          User?      @relation("Referrals", fields: [referredBy], references: [id], onDelete: SetNull)
-  referrals         User[]     @relation("Referrals") // Self-referencing relation for users referred by this user
+  referrals         User[]     @relation("Referrals")
   streak            UserStreak?
   transactions      Transaction[]
-
+  lastSpinDate      DateTime?  
+  spins             UserSpin[]
+  miningSessions    MiningSession[]
+  // New field for wallet analytics
+  totalSpent        Int      @default(0)
+  
   @@map("users")
 }
+
+model UserSpin {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  spinDate  DateTime @default(now())
+  reward    Int      
+  createdAt DateTime @default(now())
+
+  @@map("user_spins")  
+}
+
 model UserStreak {
   id                  String   @id @default(cuid())
   userId              String   @unique
-  user                User     @relation(fields: [userId], references: [id])
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   currentStreak       Int      @default(0)
   highestStreak       Int      @default(0)
   startDate           DateTime?
   lastLogin           DateTime?
   achievedMilestones  Int[]    @default([])
   tokens              Int      @default(0)
+
+  @@map("user_streaks") 
 }
 
+// Enhanced Transaction model with simplified types
 model Transaction {
-  id          String   @id @default(cuid())
-  userId      String   // References User.id
+  id          String          @id @default(cuid())
+  userId      String
   packageId   Int?
+  type        TransactionType // No default value
   hashRate    Float
   priceTON    Float
   amount      Float
-  date        DateTime @default(now())
+  date        DateTime        @default(now())
   boc         String
   validity    String
-  item        Float    // hashRate value
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  item        Float
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
   @@map("transactions")
 }
 
+// Simplified enum for transaction types
+enum TransactionType {
+  PURCHASE
+  REFERRAL_BONUS
+  SPIN_REWARD
+  WITHDRAW
+  SWAP
+}
+
+// Model to track mining sessions for better analytics
+model MiningSession {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startTime       DateTime
+  endTime         DateTime?
+  hashRate        Float
+  tokensEarned    Float    @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("mining_sessions")
+}
+
 model Price {
-  id      String  @id @default(cuid())
-  price   Float
-  change  Float
+  id        String   @id @default(cuid())
+  price     Float
+  change    Float
   updatedAt DateTime @updatedAt
+}
+
+model support_complaints {
+  id          Int       @id @default(autoincrement())
+  user_id     String
+  name        String    @db.VarChar(255)
+  email       String    @db.VarChar(255)
+  subject     String    @db.VarChar(255)
+  category    String    @db.VarChar(50)
+  priority    String    @default("Medium") @db.VarChar(20)
+  description String
+  attachment  String?   @db.VarChar(500)
+  status      String    @default("Open") @db.VarChar(20)
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
 }

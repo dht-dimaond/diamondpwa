@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     console.log('✅ Clerk user found:', { id: clerkUser.id });
 
     console.log('🔍 Finding user in database...');
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { clerkId: clerkUser.id },
       select: {
         id: true,

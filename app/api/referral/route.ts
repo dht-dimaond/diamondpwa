@@ -1,50 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
-import { v4 as uuidv4 } from 'uuid';
-import { clerkClient } from '@clerk/nextjs/server';
 
 const REFERRAL_BONUS = 10;
-
-async function getClerkUserData(userId: string) {
-  try {
-    const clerk = await clerkClient();
-    const user = await clerk.users.getUser(userId);
-    return {
-      clerkId: user.id,
-      firstName: user.firstName || '',
-      lastName: user.lastName || '',
-      userName: user.username || user.emailAddresses[0]?.emailAddress?.split('@')[0] || '',
-      email: user.emailAddresses[0]?.emailAddress || '',
-      avatar: user.imageUrl || '', // Add avatar field
-    };
-  } catch (error) {
-    console.error('Failed to fetch user from Clerk:', error);
-    throw new Error('Unable to fetch user data from Clerk');
-  }
-}
-
-async function createOrUpdateUser(userId: string, referrerId?: string) {
-  const clerkUserData = await getClerkUserData(userId);
-  
-  return prisma.user.upsert({
-    where: { id: userId },
-    update: { 
-      referredBy: referrerId,
-      referralCode: uuidv4(),
-      updatedAt: new Date()
-    },
-    create: { 
-      id: userId,
-      ...clerkUserData,
-      referredBy: referrerId,
-      referralCode: uuidv4(),
-      balance: 0,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-  });
-}
 
 export async function POST(req: Request) {
   try {
@@ -54,19 +12,39 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 });
     }
 
-    console.log('📡 Processing referral for user:', userId);
+    console.log('📡 Processing referral for database user ID:', userId);
 
-    // Check if user already exists and has a referrer
+    // Wait a moment to ensure user creation is complete
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Check if user exists in database and get their current referral status
     const existingUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { referredBy: true },
+      select: { 
+        id: true, 
+        referredBy: true, 
+        referralCode: true,
+        clerkId: true,
+        firstName: true,
+        userName: true
+      },
     });
 
-    if (existingUser?.referredBy) {
+    if (!existingUser) {
+      console.log('❌ User not found in database:', userId);
       return NextResponse.json({ 
         success: false, 
-        error: 'User already referred' 
-      }, { status: 400 });
+        error: 'User not found in database' 
+      }, { status: 404 });
+    }
+
+    if (existingUser.referredBy) {
+      console.log('ℹ️ User already has a referrer');
+      return NextResponse.json({ 
+        success: true, 
+        message: 'User already referred',
+        alreadyReferred: true
+      });
     }
 
     // Get referral code from cookie
@@ -74,96 +52,147 @@ export async function POST(req: Request) {
     const referralCode = cookieStore.get('referral_code')?.value;
 
     if (!referralCode) {
-      console.log('ℹ️ No referral code found');
-      await createOrUpdateUser(userId);
+      console.log('ℹ️ No referral code found in cookies');
       return NextResponse.json({ 
         success: true, 
-        message: 'User created without referral' 
+        message: 'User created without referral - no referral code provided',
+        noReferralCode: true
       });
     }
 
-    // Find referrer
+    console.log('🔍 Looking for referrer with code:', referralCode);
+
+    // Find referrer in database
     const referrer = await prisma.user.findUnique({
       where: { referralCode },
-      select: { id: true },
+      select: { 
+        id: true, 
+        firstName: true, 
+        userName: true,
+        balance: true 
+      },
     });
 
     if (!referrer) {
       console.log(`❌ Invalid referral code: ${referralCode}`);
-      await createOrUpdateUser(userId);
       return NextResponse.json({ 
         success: true, 
-        message: 'Invalid referral code, user created without referral' 
+        message: 'Invalid referral code - user created without referral',
+        invalidCode: true
       });
     }
 
+    // Prevent self-referral
+    if (referrer.id === userId) {
+      console.log('❌ Attempted self-referral');
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Cannot refer yourself' 
+      }, { status: 400 });
+    }
+
+    console.log(`✅ Found valid referrer: ${referrer.firstName || referrer.userName} (${referrer.id})`);
+
     // Process referral in transaction
-    await prisma.$transaction(async (tx) => {
-      // Create/update user with referrer
-      await tx.user.upsert({
+    const result = await prisma.$transaction(async (tx) => {
+      // Update new user with referrer
+      const updatedUser = await tx.user.update({
         where: { id: userId },
-        update: {
+        data: {
           referredBy: referrer.id,
-          referralCode: uuidv4(),
           updatedAt: new Date(),
         },
-        create: { 
-          id: userId,
-          ...(await getClerkUserData(userId)),
-          referredBy: referrer.id,
-          referralCode: uuidv4(),
-          balance: 0,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
+        select: {
+          id: true,
+          firstName: true,
+          userName: true,
+          referredBy: true
+        }
       });
 
-      // Credit referrer
-      await tx.user.update({
+      // Credit referrer with bonus
+      const updatedReferrer = await tx.user.update({
         where: { id: referrer.id },
         data: {
           balance: { increment: REFERRAL_BONUS },
           updatedAt: new Date(),
         },
+        select: {
+          id: true,
+          balance: true,
+          firstName: true,
+          userName: true
+        }
       });
 
-      // Optional: Log referral transaction
-      await tx.transaction.create({
+      // Log referral transaction for the referrer
+      const transaction = await tx.transaction.create({
         data: {
           userId: referrer.id,
-          packageId: 0, // Keep as 0 if schema requires number, not null
+          packageId: 0,
           hashRate: 0,
           priceTON: 0,
           amount: REFERRAL_BONUS,
           date: new Date(),
-          boc: 'referral_bonus',
+          boc: `referral_bonus_from_${userId}`,
           validity: 'permanent',
           item: 0,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
       });
+
+      return {
+        newUser: updatedUser,
+        referrer: updatedReferrer,
+        transaction
+      };
     });
 
-    console.log(`✅ Referral processed: ${userId} → ${referrer.id} (+$${REFERRAL_BONUS})`);
+    console.log(`✅ Referral processed successfully:`);
+    console.log(`   New user: ${result.newUser.firstName || result.newUser.userName} (${result.newUser.id})`);
+    console.log(`   Referrer: ${result.referrer.firstName || result.referrer.userName} (${result.referrer.id})`);
+    console.log(`   Bonus awarded: ${REFERRAL_BONUS} (New balance: ${result.referrer.balance})`);
 
-    // Clear referral cookie properly
+    // Clear referral cookie after successful processing
     const response = NextResponse.json({ 
       success: true, 
-      message: 'Referral processed successfully' 
+      message: 'Referral processed successfully',
+      data: {
+        referrer: {
+          id: result.referrer.id,
+          name: result.referrer.firstName || result.referrer.userName,
+          newBalance: result.referrer.balance
+        },
+        bonus: REFERRAL_BONUS,
+        transactionId: result.transaction.id
+      }
     });
     
     response.cookies.set('referral_code', '', {
       expires: new Date(0),
-      path: '/'
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax'
     });
 
     return response;
 
   } catch (error) {
     console.error('💥 Referral processing error:', error);
+    
+    // Provide more specific error information
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
+    }
+    
     return NextResponse.json({ 
-      error: 'Failed to process referral' 
+      success: false,
+      error: 'Failed to process referral - please contact support if this persists' 
     }, { status: 500 });
   }
 }

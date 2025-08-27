@@ -25,7 +25,7 @@ export default function NavBar() {
   // Fetch avatar from /user/api  
   useEffect(() => {
     if (user) {
-      fetch('/user/api')
+      fetch('/api/user')
         .then((res) => res.json())
         .then((data) => setAvatar(data.avatarUrl || user.imageUrl || null))
         .catch(() => setAvatar(user?.imageUrl || null));
