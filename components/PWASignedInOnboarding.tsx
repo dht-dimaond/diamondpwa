@@ -16,11 +16,6 @@ export default function PWASignedInOnboarding() {
         Welcome Back!
       </h1>
       
-      <div className="bg-blue-900/30 border border-blue-400/30 rounded-xl p-6 mb-8">
-        <div className="text-2xl font-bold text-white mb-2">0.00 $DHT</div>
-        <div className="text-white/60 text-sm">Current Balance</div>
-      </div>
-      
         <Link href="/dashboard">
         <button 
           className="w-full bg-gradient-to-r from-blue-900 to-blue-800 text-white py-4 rounded-xl font-semibold hover:from-blue-800 hover:to-blue-700 transition-all shadow-lg"
