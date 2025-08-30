@@ -15,7 +15,7 @@ export default function DashboardLayout({
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-slate-900">
       <Navbar />
-      <main className="flex-1 mt-16 overflow-y-auto bg-white dark:bg-slate-900 pb-20 relative z-10">
+      <main className="flex-1 mt-16 overflow-y-auto bg-white dark:bg-slate-900 relative z-10">
           {children}
       </main>
     </div>
