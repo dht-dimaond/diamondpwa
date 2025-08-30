@@ -1,9 +1,8 @@
-// app/api/user/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const auth = await currentUser();
     
@@ -24,9 +23,9 @@ export async function GET(request: NextRequest) {
         isAmbassador: true,
         balance: true,
         hashrate: true,
-        minedAmount: true,
         miningStartTime: true,
         isMining: true,
+        lastClaimTime: true,
         isMigrated: true,
         createdAt: true,
         updatedAt: true,

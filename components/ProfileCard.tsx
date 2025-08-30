@@ -9,9 +9,6 @@ import {
   Globe,
   Star,
   Shield,
-  Wallet,
-  TrendingUp,
-  Clock,
   Settings,
   ChevronRight
 } from 'lucide-react';
@@ -19,8 +16,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import AvatarUploadForm from '@/components/AvatarUploadForm';
 import { updateUserAvatar } from '@/lib/avatarUpload';
-import { useEffect } from 'react';
-import { useUser } from '@clerk/nextjs'
 
 interface DatabaseUser {
   id: string;
@@ -43,11 +38,6 @@ interface ProfileCardProps {
 }
 
 const ProfileCard: React.FC<ProfileCardProps> = ({ userData }) => {
-  const formatHashrate = (hashrate: number) => {
-    if (hashrate >= 1000000) return `${(hashrate / 1000000).toFixed(1)}MH/s`;
-    if (hashrate >= 1000) return `${(hashrate / 1000).toFixed(1)}KH/s`;
-    return `${hashrate}H/s`;
-  };
 
   const formatDate = (date?: Date) => {
     if (!date) return 'N/A';

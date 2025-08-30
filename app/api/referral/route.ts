@@ -129,6 +129,7 @@ export async function POST(req: Request) {
       const transaction = await tx.transaction.create({
         data: {
           userId: referrer.id,
+          type: 'REFERRAL_BONUS', // Add the missing type field
           packageId: 0,
           hashRate: 0,
           priceTON: 0,

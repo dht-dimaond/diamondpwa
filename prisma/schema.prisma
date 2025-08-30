@@ -16,13 +16,14 @@ model User {
   avatar            String?
   email             String
   isAmbassador      Boolean    @default(false)
+  isAdmin           Boolean    @default(false)
   telegramId        String?    @unique
   telegramUsername  String?
   balance           Int        @default(0)
   hashrate          Int        @default(10)
-  minedAmount       Float?     @default(0)
-  miningStartTime   DateTime?
+  miningStartTime   DateTime?  
   isMining          Boolean    @default(false)
+  lastClaimTime     DateTime?  
   isMigrated        Boolean    @default(false)
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
@@ -36,7 +37,7 @@ model User {
   spins             UserSpin[]
   miningSessions    MiningSession[]
   // New field for wallet analytics
-  totalSpent        Int      @default(0)
+  totalSpent        Int        @default(0)
   
   @@map("users")
 }
@@ -66,7 +67,6 @@ model UserStreak {
   @@map("user_streaks") 
 }
 
-// Enhanced Transaction model with simplified types
 model Transaction {
   id          String          @id @default(cuid())
   userId      String
@@ -86,25 +86,26 @@ model Transaction {
   @@map("transactions")
 }
 
-// Simplified enum for transaction types
 enum TransactionType {
   PURCHASE
   REFERRAL_BONUS
   SPIN_REWARD
   WITHDRAW
   SWAP
+  MINING_CLAIM
 }
 
-// Model to track mining sessions for better analytics
+
 model MiningSession {
   id              String   @id @default(cuid())
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  startTime       DateTime
-  endTime         DateTime?
-  hashRate        Float
-  tokensEarned    Float    @default(0)
-  isActive        Boolean  @default(true)
+  startTime       DateTime // When mining session started
+  endTime         DateTime // When mining session ended (24 hours later)
+  hashRate        Float    // Hashrate used during this session
+  tokensEarned    Float    // Actual tokens earned and claimed
+  sessionDuration Int      @default(86400) // Duration in seconds (24 hours = 86400)
+  claimedAt       DateTime // When tokens were claimed
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

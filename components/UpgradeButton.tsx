@@ -9,11 +9,6 @@ interface UpgradeButtonProps {
 }
 
 const UpgradeButton = ({ href, text = "Upgrade Now" }: UpgradeButtonProps) => {
-  interface UpgradeButtonProps {
-  text: string;
-  href: string;
-  onClick?: () => void;  // Make onClick optional
-}
   return (
     <Link
       href={href}

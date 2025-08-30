@@ -17,6 +17,7 @@ interface ReferralStats {
 }
 
 export async function GET(req: Request) {
+  console.log(req);
   console.log('📡 GET /api/referral-stats started');
   
   try {
@@ -110,6 +111,7 @@ export async function GET(req: Request) {
     });
 
     return NextResponse.json(stats);
+    //eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error('💥 Referral stats error:', error);
     console.error('Error details:', {

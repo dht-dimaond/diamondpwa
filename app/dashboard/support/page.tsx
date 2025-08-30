@@ -121,7 +121,7 @@ export default function HelpSupport() {
             </div>
             <div>
               <h1 className="text-3xl font-bold">Help & Support</h1>
-              <p className="text-blue-200">We're here to assist you with any issues or questions</p>
+              <p className="text-blue-200">We&apos;re here to assist you with any issues or questions</p>
             </div>
           </div>
           

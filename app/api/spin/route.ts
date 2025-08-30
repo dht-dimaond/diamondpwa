@@ -1,120 +1,204 @@
+// app/api/spin/route.ts
 import { PrismaClient } from '@prisma/client';
 import { currentUser } from '@clerk/nextjs/server';
+import { WHEEL_SEGMENTS, selectRandomReward } from '@/shared/wheel-config';
+import { rateLimiter, RATE_LIMITS } from '@/lib/rate-limiter';
 
 const prisma = new PrismaClient();
 
-export async function POST() {
+// Custom error types for better error handling
+class SpinError extends Error {
+  constructor(
+    message: string, 
+    public code: string, 
+    public statusCode: number = 400,
+    public userMessage?: string
+  ) {
+    super(message);
+    this.name = 'SpinError';
+  }
+}
+
+export async function POST(request: Request) {
+  console.log(request);
   try {
+    // Get user authentication
     const clerkUser = await currentUser();
     if (!clerkUser) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+      throw new SpinError(
+        'No authenticated user found',
+        'UNAUTHORIZED',
+        401,
+        'Please log in to spin the wheel'
+      );
+    }
+
+    // Rate limiting
+    const userIdentifier = clerkUser.id;
+    const isAllowed = rateLimiter.isAllowed(
+      userIdentifier,
+      RATE_LIMITS.SPIN_ATTEMPTS.limit,
+      RATE_LIMITS.SPIN_ATTEMPTS.windowMs
+    );
+
+    if (!isAllowed) {
+      const status = rateLimiter.getStatus(userIdentifier);
+      const resetTime = Math.ceil(status.remaining / 1000);
+      
+      throw new SpinError(
+        'Rate limit exceeded',
+        'RATE_LIMITED',
+        429,
+        `Too many spin attempts. Please wait ${resetTime} seconds before trying again.`
+      );
     }
 
     // Find existing user by clerkId
     const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUser.id }
+      where: { clerkId: clerkUser.id },
+      select: {
+        id: true,
+        balance: true,
+        lastSpinDate: true,
+        email: true
+      }
     });
 
     if (!user) {
-      return new Response(JSON.stringify({ 
-        error: 'User not found',
-        message: 'Please complete registration first'
-      }), { status: 404 });
+      throw new SpinError(
+        `User not found for clerkId: ${clerkUser.id}`,
+        'USER_NOT_FOUND',
+        404,
+        'User account not found. Please complete your registration first.'
+      );
     }
 
-    // Check if user has already spun today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Check if user has already spun today (using UTC for consistency)
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
 
     const existingSpin = await prisma.userSpin.findFirst({
       where: {
         userId: user.id,
         spinDate: {
-          gte: today,
-          lt: tomorrow
+          gte: todayStart,
+          lt: todayEnd
         },
       },
     });
 
     if (existingSpin) {
-      return new Response(JSON.stringify({ 
-        error: 'Daily spin limit reached',
-        message: 'Come back tomorrow for another spin!'
-      }), { status: 400 });
+      const hoursUntilReset = Math.ceil((todayEnd.getTime() - now.getTime()) / (1000 * 60 * 60));
+      
+      throw new SpinError(
+        'Daily spin limit reached',
+        'DAILY_LIMIT_REACHED',
+        400,
+        `You've already spun today! Come back in ${hoursUntilReset} hour(s) for your next spin.`
+      );
     }
 
-    // Generate random reward based on wheel segments
-    const segments = [
-      { reward: 0, weight: 20 },    // Try Again - 20%
-      { reward: 10, weight: 30 },   // 10 Tokens - 30%
-      { reward: 20, weight: 25 },   // 20 Tokens - 25%
-      { reward: 50, weight: 15 },   // 50 Tokens - 15%
-      { reward: 100, weight: 8 },   // 100 Tokens - 8%
-      { reward: 200, weight: 2 },   // 200 Tokens - 2%
-    ];
-    
-    const totalWeight = segments.reduce((sum, segment) => sum + segment.weight, 0);
-    let random = Math.random() * totalWeight;
-    let selectedReward = 0;
-    
-    for (const segment of segments) {
-      random -= segment.weight;
-      if (random <= 0) {
-        selectedReward = segment.reward;
-        break;
-      }
-    }
+    // Generate random reward
+    const selectedReward = selectRandomReward();
 
-    // Create spin record
-    const userSpin = await prisma.userSpin.create({
-      data: {
-        userId: user.id,
-        reward: selectedReward,
-        spinDate: new Date()
-      }
+    // Execute database operations in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create spin record first
+      const userSpin = await tx.userSpin.create({
+        data: {
+          userId: user.id,
+          reward: selectedReward,
+          spinDate: now
+        }
+      });
+
+      // Update user balance and lastSpinDate
+      const updatedUser = await tx.user.update({
+        where: { id: user.id },
+        data: {
+          balance: selectedReward > 0 ? {
+            increment: selectedReward
+          } : undefined,
+          lastSpinDate: now
+        },
+        select: {
+          balance: true,
+          lastSpinDate: true
+        }
+      });
+
+      return { userSpin, updatedUser };
     });
 
-    // Update user balance and lastSpinDate if reward > 0
-    if (selectedReward > 0) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          balance: {
-            increment: selectedReward
-          },
-          lastSpinDate: new Date()
-        }
-      });
-    } else {
-      // Update lastSpinDate even for no reward
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          lastSpinDate: new Date()
-        }
-      });
-    }
-
+    // Generate appropriate message
     const message = selectedReward > 0 
-      ? `Congratulations! You won ${selectedReward} tokens!` 
-      : "Better luck next time!";
+      ? `🎉 Congratulations! You won ${selectedReward} tokens!`
+      : "💔 Better luck next time! Try again tomorrow.";
 
-    return new Response(JSON.stringify({
+    const responseData = {
       success: true,
       reward: selectedReward,
       message,
-      spinId: userSpin.id
-    }), { status: 200 });
+      spinId: result.userSpin.id,
+      newBalance: result.updatedUser.balance,
+      nextSpinAvailable: todayEnd.toISOString(),
+      segments: WHEEL_SEGMENTS // Include segments for frontend sync
+    };
+
+    console.log(`Spin completed for user ${user.id}: reward=${selectedReward}, newBalance=${result.updatedUser.balance}`);
+
+    return new Response(JSON.stringify(responseData), { 
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
 
   } catch (error) {
     console.error('Spin API error:', error);
+
+    if (error instanceof SpinError) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: error.code,
+        message: error.userMessage || error.message,
+        statusCode: error.statusCode
+      }), { 
+        status: error.statusCode,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+    }
+
+    // Handle Prisma errors
+    if (error instanceof Error && error.message.includes('Unique constraint')) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'DUPLICATE_SPIN',
+        message: 'A spin for today already exists. Please try again tomorrow.'
+      }), { 
+        status: 409,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+    }
+
+    // Generic error response
     return new Response(JSON.stringify({
-      error: 'Spin failed',
-      details: (error as Error).message
-    }), { status: 500 });
+      success: false,
+      error: 'INTERNAL_ERROR',
+      message: 'An unexpected error occurred. Please try again later.',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    }), { 
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
   } finally {
     await prisma.$disconnect();
   }

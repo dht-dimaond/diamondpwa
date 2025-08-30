@@ -16,7 +16,7 @@ interface ReferralStats {
 }
 
 export default function ReferralPage() {
-  const { user, isLoaded } = useUser();
+  const { isLoaded } = useUser();
   const [stats, setStats] = useState<ReferralStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);

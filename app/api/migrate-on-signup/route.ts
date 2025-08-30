@@ -190,6 +190,7 @@ export async function POST(req: Request) {
           }, { status: 404 });
         }
       } catch (firebaseError) {
+        console.log(firebaseError);
         migrationError = 'Unable to check legacy data';
       }
     }
@@ -259,6 +260,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(response);
+    //eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     if (error.code === 'P2002') {
       const target = error.meta?.target;
@@ -293,6 +295,7 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
+  console.log(req);
   try {
     const clerkUser = await currentUser();
     
@@ -340,6 +343,7 @@ export async function GET(req: Request) {
     
     return NextResponse.json(result);
   } catch (error) {
+    console.log(error);
     return NextResponse.json(
       { error: 'Failed to check migration status' },
       { status: 500 }

@@ -10,6 +10,7 @@ const StreakDisplay: React.FC<StreakDisplayProps> = ({ onMilestoneReached }) => 
   const [currentStreak, setCurrentStreak] = useState<number>(0);
   const [highestStreak, setHighestStreak] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
+  console.log(loading)
   const [showMilestone, setShowMilestone] = useState<boolean>(false);
   const [milestoneReward, setMilestoneReward] = useState<number | null>(null);
   const [startDate, setStartDate] = useState<string>('');
@@ -42,6 +43,7 @@ const StreakDisplay: React.FC<StreakDisplayProps> = ({ onMilestoneReached }) => 
 
       try {
         setLoading(true);
+      
         // Call API endpoint to update/fetch streak
         const response = await fetch('/api/streak', {
           method: 'POST',

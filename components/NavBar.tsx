@@ -100,7 +100,7 @@ export default function NavBar() {
         <div className="p-2">
           <nav className="mt-2">
             <ul className="space-y-1">
-              {navLinks.map((link, index) => (
+              {navLinks.map((link) => (
                 <li key={link.href} className="relative">
                   <Link
                     href={link.href}

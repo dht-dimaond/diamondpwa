@@ -1,13 +1,40 @@
-import Link from "next/link"
+'use client';
+
+import { SignedIn, SignedOut } from '@clerk/nextjs';
+import { usePWADetection } from '@/hooks/usePWADetection';
+import WebOnlyPrompt from '@/components/WebOnlyPrompt';
+import PWASignedOutOnboarding from '@/components/PWASignedOutOnboarding';
+import PWASignedInOnboarding from '@/components/PWASignedInOnboarding';
 
 export default function Home() {
+  const isPWA = usePWADetection();
+  
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-     <Link href="/sign-up">
-      <button className="bg-blue-600 hover:bg-blue-700 transition-colors text-white font-semibold py-2 px-4 rounded">
-        Sign Up
-      </button>
-     </Link>
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 relative overflow-hidden">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse"></div>
+        <div className="absolute top-40 left-40 w-80 h-80 bg-indigo-500 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse"></div>
+      </div>
+      
+      {/* Content */}
+      <div className="relative z-10">
+        {!isPWA ? (
+          // If not PWA, always show web-only prompt regardless of auth state
+          <WebOnlyPrompt />
+        ) : (
+          // If PWA, show different onboarding based on auth state
+          <>
+            <SignedOut>
+              <PWASignedOutOnboarding />
+            </SignedOut>
+            <SignedIn>
+              <PWASignedInOnboarding />
+            </SignedIn>
+          </>
+        )}
+      </div>
     </div>
   );
 }

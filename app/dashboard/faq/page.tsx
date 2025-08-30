@@ -5,6 +5,7 @@ import Link from 'next/link';
 
 
 interface FeatureCardProps {
+  //eslint-disable-next-line
   icon: React.ComponentType<any>;
   title: string;
   children: React.ReactNode;

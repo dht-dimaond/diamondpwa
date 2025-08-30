@@ -110,6 +110,7 @@ export default function SignupMigrationPage() {
           router.push('/dashboard');
         }, 2500);
       }
+      //eslint-disable-next-line
     } catch (error: any) {
       console.error('💥 Migration error:', error);
       setResult({
@@ -159,7 +160,7 @@ export default function SignupMigrationPage() {
         <div className="text-center">
           <h2 className="text-3xl font-bold text-gray-900">Welcome, {user?.firstName}! 👋</h2>
           <p className="mt-4 text-gray-600">
-            Let's set up your account. Do you have an existing account from our Telegram Mini App?
+            Let&apos;s set up your account. Do you have an existing account from our Telegram Mini App?
           </p>
         </div>
 
@@ -172,14 +173,14 @@ export default function SignupMigrationPage() {
                   <div>
                     <h4 className="text-sm font-medium text-yellow-800">No Data Found</h4>
                     <p className="text-sm text-yellow-700 mt-1">
-                      We couldn't find any data for Telegram ID: <strong>{telegramId}</strong>
+                      We couldn&apos;t find any data for Telegram ID: <strong>{telegramId}</strong>
                     </p>
                     <p className="text-sm text-yellow-700 mt-2">
                       📝 <strong>Suggestions:</strong>
                     </p>
                     <ul className="text-sm text-yellow-700 mt-1 ml-4 list-disc">
                       <li>Double-check your Telegram ID</li>
-                      <li>Or choose "Start Fresh" to create a new account</li>
+                      <li>Or choose &apos;Start Fresh&apos; to create a new account</li>
                     </ul>
                   </div>
                 </div>
@@ -250,7 +251,7 @@ export default function SignupMigrationPage() {
 
             <div className="text-center">
               <p className="text-xs text-gray-500">
-                💡 Don't have a Telegram ID? No problem - click "Start Fresh Instead" to begin!
+                💡 Don&apos;t have a Telegram ID? No problem - click &apos;Start Fresh Instead&apos; to begin!
               </p>
             </div>
           </div>
@@ -335,7 +336,7 @@ export default function SignupMigrationPage() {
                         <p className="text-gray-800 text-sm font-medium">{formatDate(new Date().toISOString())}</p>
                       </div>
                     </div>
-                    <p className="text-sm text-blue-700 mb-4">Your new account is ready. Let's start your journey!</p>
+                    <p className="text-sm text-blue-700 mb-4">Your new account is ready. Let&apos;s start your journey!</p>
                     {!telegramId && (
                       <div className="mt-4 flex items-center justify-center text-sm text-gray-600">
                         <svg className="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">

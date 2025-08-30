@@ -28,7 +28,6 @@ export async function POST(request: NextRequest) {
       where: { clerkId: auth.id },
       data: { 
         balance: newBalance,
-        minedAmount: 0,
         miningStartTime: null,
         isMining: false
       }

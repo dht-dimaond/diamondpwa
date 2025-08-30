@@ -2,7 +2,6 @@
 
 import {  useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { useMining } from '@/context/MiningContext';
 import StreakCounter from '@/components/StreakCounter';
 import PriceComponent from '@/components/PriceComponent';
 import NavGrid from '@/components/NavGrid';
@@ -15,45 +14,25 @@ import {
   Users,
   BarChart3,
   Clock,
-  Target,
-  LucideGamepad,
   Loader,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
+import { fetchUserMiningData, UserMiningData } from '@/lib/mining-utils';
 
 const HomePage = () => {
   const { user, isLoaded } = useUser();
-  const [balance, setBalance] = useState<number>(); 
-  const [hashRate, setHashRate] = useState<number>(); 
+  const [userData, setUserData] = useState<UserMiningData | null>(null);
   const [showSpinModal, setShowSpinModal] = useState(false);
   const [price, setPrice] = useState("0.00");
   const [rank, setRank] = useState('');
 
   useEffect(() => {
-    const fetchUserData = async () => {
+    const loadUserData = async () => {
       try {
-        if (!user?.id) {
-          console.error("User ID is missing");
-          return;
-        }
-  
-        const res = await fetch(`/api/user?userId=${user.id}`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-  
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-  
-        const userData = await res.json();
-  
-        if (userData) {
-          setBalance(userData.balance);
-          setHashRate(userData.hashrate);
+        const data = await fetchUserMiningData();
+        if (data) {
+          setUserData(data);
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
@@ -73,7 +52,7 @@ const HomePage = () => {
     fetchRank();
   
     if (isLoaded && user) {
-      fetchUserData();
+      loadUserData();
     }
   }, [user, isLoaded]);
 
@@ -94,7 +73,6 @@ const HomePage = () => {
     return () => clearInterval(intervalId);
   }, []); 
 
-  const { isMining } = useMining();
 
   if (!isLoaded) {
     return (
@@ -122,11 +100,11 @@ const HomePage = () => {
                   <Wallet className="w-6 h-6" />
                   <span className="text-sm opacity-90">Current Balance</span>
                 </div>
-                <div className={`w-3 h-3 rounded-full ${isMining ? 'bg-green-400 animate-pulse' : 'bg-gray-400'}`}></div>
+                <div className={`w-3 h-3 rounded-full ${userData?.isMining ? 'bg-green-400 animate-pulse' : 'bg-gray-400'}`}></div>
               </div>
               <div className="space-y-2">
                 <p className="text-3xl font-bold">
-                  {balance?.toFixed(6)} <span className="text-amber-300">DHT</span>
+                  {userData?.balance?.toFixed(6)} <span className="text-amber-300">DHT</span>
                 </p>
                 <p className="text-sm opacity-90">$ {price}</p>
               </div>
@@ -141,7 +119,7 @@ const HomePage = () => {
                   </div>
                   <div>
                     <p className="text-xs text-gray-600 dark:text-gray-400">Hashrate</p>
-                    <p className="font-semibold text-gray-900 dark:text-white">{hashRate}</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">{userData?.hashrate}</p>
                   </div>
                 </div>
               </div>
@@ -172,18 +150,18 @@ const HomePage = () => {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900 dark:text-white">Mining Status</h3>
                 <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  isMining 
+                  userData?.isMining 
                     ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' 
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                 }`}>
-                  {isMining ? 'Active' : 'Stopped'}
+                  {userData?.isMining ? 'Active' : 'Stopped'}
                 </div>
               </div>
               
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600 dark:text-gray-400">Mining Power</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{hashRate} GH/s</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{userData?.hashrate} GH/s</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600 dark:text-gray-400">Efficiency</span>
@@ -232,7 +210,7 @@ const HomePage = () => {
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 dark:text-gray-400">Total Mined</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{balance} DHT</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{userData?.balance} DHT</span>
                 </div>
               </div>
             </div>

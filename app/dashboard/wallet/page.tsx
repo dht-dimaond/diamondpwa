@@ -49,6 +49,7 @@ export default function WalletPage() {
     transactionCount: 0,
     totalSpinRewards: 0
   });
+  //eslint-disable-next-line
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -162,7 +163,7 @@ export default function WalletPage() {
                   <div>
                     <p className="text-blue-200 text-sm">Total Balance</p>
                     <h2 className="text-4xl font-bold">
-                      {walletStats.balance.toFixed(2)}
+                      {walletStats.balance.toFixed(6)}
                       <span className="text-2xl text-amber-300 ml-2">DHT</span>
                     </h2>
                   </div>
@@ -178,7 +179,7 @@ export default function WalletPage() {
                       <TrendingDown className="w-4 h-4 text-red-300" />
                     )}
                     <span className={`text-sm ${priceData.change >= 0 ? 'text-green-300' : 'text-red-300'}`}>
-                      {priceData.change > 0 ? '+' : ''}{priceData.change.toFixed(2)}%
+                      {priceData.change > 0 ? '+' : ''}{Number(priceData.change).toFixed(2)}%
                     </span>
                   </div>
                 </div>

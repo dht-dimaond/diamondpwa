@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useUser, SignOutButton } from '@clerk/nextjs';
 import ProfileCard from '@/components/ProfileCard';
 
 interface DatabaseUser {
@@ -43,7 +43,8 @@ const ProfilePage = () => {
         const userDbData = await response.json();
         
         if (userDbData) {
-          setUserData(userDbData); 
+          setUserData(userDbData);
+         
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -87,8 +88,20 @@ const ProfilePage = () => {
   }
 
   return (
-    <div>
-      <ProfileCard userData={userData} />
+    <div className="flex flex-col min-h-screen">
+      {/* Profile Content */}
+      <div className="flex-1">
+        <ProfileCard userData={userData} />
+      </div>
+
+      {/* Sign Out Button - Full width at bottom */}
+      <div className="p-4">
+        <SignOutButton>
+          <button className="w-full bg-red-500 hover:bg-red-600 text-white py-4 rounded-xl font-medium transition-colors duration-200 shadow-lg">
+            Sign Out
+          </button>
+        </SignOutButton>
+      </div>
     </div>
   );
 };

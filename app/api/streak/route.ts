@@ -62,6 +62,7 @@ export async function GET() {
     const daysDiff = differenceInDays(today, lastLoginDay);
 
     if (daysDiff > 0) {
+ //eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updatedData: any = { lastLogin: new Date() };
 
       if (daysDiff === 1) {
